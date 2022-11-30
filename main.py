@@ -5,7 +5,7 @@ import numpy as np
 from numpy import pi
 from typing import Dict, List
 
-print("gewgew")
+
 class RGBCamera:
     def __init__(self):
         self.view_matrix = p.computeViewMatrix(
