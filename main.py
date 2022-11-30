@@ -84,7 +84,17 @@ class R2D2:
         pos, orn = p.getBasePositionAndOrientation(self.object_ID)
         return np.array(pos).round(pos_decimals), (np.array(p.getEulerFromQuaternion(orn)) / pi).round(orn_decimals)
 
-    def drive(self, force, velocity):
+    def drive(self, force: float = 100, velocity: float = 20):
+        """
+        Make R2D2 accelerate with a given force to a given velocity. Once they reach the velocity it moves
+        at a constant speed.
+        Make R2D2 drive with a given velocity and a force with which it accelerates to the given velocity.
+        :param force: Acceleration force, defaults to 100
+        :type force: float
+        :param velocity: Target velocity
+        :type velocity: float
+        :return: None
+        """
         velocity = -velocity
         p.setJointMotorControlArray(self.object_ID,
                                     jointIndices=[2, 3, 6, 7],
@@ -93,6 +103,11 @@ class R2D2:
                                     targetVelocities=np.repeat(velocity, 4))
 
     def stop(self, force):
+        """
+        Stops R2D2 with a given force.
+        :param force: Breaking force
+        :return: None
+        """
         p.setJointMotorControlArray(self.object_ID,
                                     jointIndices=[2, 3, 6, 7],
                                     controlMode=p.VELOCITY_CONTROL,
@@ -102,7 +117,8 @@ class R2D2:
 
 def main():
     # connect to GUI built-in physics server
-    physicsClient = p.connect(p.GUI)
+    # physicsClient = p.connect(p.GUI)
+    p.connect(p.GUI)
 
     # above we imported some data that comes with the package installation, which we now
     # set as an additional search path when searching for data. This is optional.
@@ -112,7 +128,7 @@ def main():
     # Here we enable a gravitational force of -10m/s^2 along the z-axis
     p.setGravity(gravX=0, gravY=0, gravZ=-10)
 
-    # the loadURDF function loads a physics model from an Universal Robot
+    # the loadURDF function loads a physics model from a Universal Robot
     # Description File (URDF). In the case below we are loading in a two-dimensional plane
     # along the x- and y-axis
     planeId = p.loadURDF("plane.urdf")
