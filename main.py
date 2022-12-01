@@ -7,18 +7,28 @@ from typing import Dict, List
 
 
 class RGBCamera:
-    def __init__(self):
-        self.view_matrix = p.computeViewMatrix(
-            cameraEyePosition=[0, 0, 3],
-            cameraTargetPosition=[0, 0, 0],
-            cameraUpVector=[0, 1, 0]
-        )
+    def __init__(self, cameraEyePosition: np.array, cameraTargetPosition: np.array, cameraUpVector: np.array,
+                 fov: float = 45.0, aspect: float = 1.0, nearVal: float = 0.1, farVal: float = 3.1):
+        self.cameraEyePosition = cameraEyePosition
+        self.cameraTargetPosition = cameraTargetPosition
+        self.cameraUpVector = cameraUpVector
+        self.fov = fov
+        self.aspect = aspect
+        self.nearVal = nearVal
+        self.farVal = farVal
 
-        self.projection_matrix = p.computeProjectionMatrixFOV(
-            fov=45.0,
-            aspect=1.0,
-            nearVal=0.1,
-            farVal=3.1)
+    def compute_view_and_projection_matrix(self):
+        self.view_matrix = p.computeViewMatrix(
+            self.cameraEyePosition,
+            self.cameraTargetPosition,
+            self.cameraUpVector
+        )
+        self.projection_matrix = p.computeProjectionMatrix(
+            self.fov,
+            self.aspect,
+            self.nearVal,
+            self.farVal
+        )
 
     def get_image(self):
         width, height, rgbImg, depthImg, segImg = p.getCameraImage(
@@ -43,9 +53,15 @@ class R2D2:
         Constructor method.
         """
         # transform the orientation from euler angles to quaternions
-        start_orientation = p.getQuaternionFromEuler(start_orientation)
+        start_orientation_quat = np.array(p.getQuaternionFromEuler(start_orientation))
         # load in the robot with a given starting position and orientation
-        self.object_ID = p.loadURDF("r2d2.urdf", start_pos, start_orientation)
+        self.object_ID = p.loadURDF("r2d2.urdf", start_pos, start_orientation_quat)
+
+        # initialize the current and last position and orientation of R2D2 to the input values
+        self.current_position = start_pos
+        self.last_position = start_pos
+        self.current_orientation = start_orientation
+        self.last_orientation = start_orientation
 
     def get_joint_info(self):
         """
@@ -71,22 +87,18 @@ class R2D2:
             }
         return joint_info
 
-    def get_position_and_orientation(self, pos_decimals: int = 0, orn_decimals: int = 0):
+    def get_position_and_orientation(self):
         """
         Return the position and the orientation of R2D2.
-        :param pos_decimals: number of decimals to round the position vector to, defaults to 0
-        :rtype pos_decimals: int
-        :param orn_decimals: number of decimals to round the orientation vector to, defaults to 0
-        :param orn_decimals: int
         :return: Position of R2D2 in cartesian coordinates and its orientation in euler angles as multiples of pi
         :rtype: List[np.array, np.array]
         """
         pos, orn = p.getBasePositionAndOrientation(self.object_ID)
-        return np.array(pos).round(pos_decimals), (np.array(p.getEulerFromQuaternion(orn)) / pi).round(orn_decimals)
+        return np.array(pos), (np.array(p.getEulerFromQuaternion(orn)) / pi)
 
     def drive(self, force: float = 100, velocity: float = 20):
         """
-        Make R2D2 accelerate with a given force to a given velocity. Once they reach the velocity it moves
+        Make R2D2 accelerate with a given force to a given velocity. Once they reach the velocity they move
         at a constant speed.
         Make R2D2 drive with a given velocity and a force with which it accelerates to the given velocity.
         :param force: Acceleration force, defaults to 100
@@ -113,6 +125,16 @@ class R2D2:
                                     controlMode=p.VELOCITY_CONTROL,
                                     forces=np.repeat(force, 4),
                                     targetVelocities=np.repeat(0, 4))
+
+    def update_position_and_orientation_data(self):
+        curr_pos, curr_orn = self.get_position_and_orientation()
+        if (curr_pos != self.current_position).any():
+            self.last_position = self.current_position
+            self.current_position = curr_pos
+
+        if (curr_orn != self.current_orientation).any():
+            self.last_orientation = self.current_orientation
+            self.current_orientation = curr_orn
 
 
 def main():
@@ -143,7 +165,17 @@ def main():
     r2d2 = R2D2(startPos, startOrientation)
 
     # Add the camera
-    rgb_camera = RGBCamera()
+    rgb_camera = RGBCamera(
+        view_matrix=p.computeViewMatrix(
+            cameraEyePosition=[0, 0, 3],
+            cameraTargetPosition=[0, 0, 0],
+            cameraUpVector=[0, 1, 0]),
+        projection_matrix=p.computeProjectionMatrixFOV(
+            fov=45.0,
+            aspect=1.0,
+            nearVal=0.1,
+            farVal=3.1)
+    )
     # # Print joint info
     # joint_info = r2d2.get_joint_info()
     # for key in r2d2.get_joint_info():
@@ -165,6 +197,12 @@ def main():
         if i % 100 == 0:
             rgb_camera.get_image()
 
+        r2d2.update_position_and_orientation_data()
+        print("Position and orientation by method")
+        print(r2d2.get_position_and_orientation())
+        print("Position and orientation by attribute")
+        print(r2d2.current_position, r2d2.current_orientation)
+        print(r2d2.last_position, r2d2.current_position)
         time.sleep(1. / 240.)
     # End the simulation
     p.disconnect()
